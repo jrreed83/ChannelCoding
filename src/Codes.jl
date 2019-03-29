@@ -28,36 +28,36 @@ function biterror(x::Integer, y::Integer) :: Integer
         out += (z & 1);
         z = z >> 1;
     end
-
+    return out;
 end
-# function poly2trellis(reglen::Integer, codes :: Vector{UInt8}) :: Trellis
 
-#     statelen = reglen - 1;
-#     nstates = 1 << statelen;
+function foo(reglen::Integer, codes :: Vector{<:Integer})
 
-#     states = zeros(UInt8, nstates, 2);
-#     outputs = zeros(UInt8, nstates, 2);
+    statelen = reglen - 1;
+    nstates = 1 << statelen;
 
-#     mask1 = UInt8(nstates);
-#     mask0 = 0x00;
+    states = OffsetArray(zeros(Integer, nstates, 2), 0:nstates-1, 0:1);
+    outputs = OffsetArray(zeros(Integer, nstates, 2), 0:nstates-1, 0:1);
 
-#     for idx in range(1, nstates, step=1)
-#         state = UInt8(idx-1);
-#         nxt0, nxt1 = mask0 | state, mask1 | state
-#         out0, out1 = 0x00, 0x00; 
-#         for (i, code) in enumerate(codes)
-#             shft = i-1;
-#             out0 |= (binarydot(code, nxt0) << shft);
-#             out1 |= (binarydot(code, nxt1) << shft);
-#         end
+    mask1 = nstates;
+    mask0 = 0;
 
-#         nxt0, nxt1 = nxt0 >> 1, nxt1 >> 1; 
-#         outputs[idx, :] = [out0, out1];
-#         states[idx, :] = [nxt0, nxt1];
-#     end
+    for state in 0:nstates-1
+        nxt0, nxt1 = mask0 | state, mask1 | state;
+        out0, out1 = 0, 0; 
+        for (i, code) in enumerate(codes)
+            shft = i-1;
+            out0 |= (binarydot(code, nxt0) << shft);
+            out1 |= (binarydot(code, nxt1) << shft);
+        end
 
-#     return Trellis(reglen, states, outputs, codes);
-# end
+        nxt0, nxt1 = nxt0 >> 1, nxt1 >> 1; 
+        outputs[state, :] = [out0, out1];
+        states[state, :] = [nxt0, nxt1];
+    end
+
+    return parent(outputs), parent(states);
+end
 
 # function convenc(trellis::Trellis, bits::Array{UInt8, 2}) :: Array{UInt8,2}
 #     state = 0x00;
