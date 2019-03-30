@@ -5,6 +5,7 @@ using OffsetArrays
 export binarydot, poly2trellis, Trellis, convenc, vitdec 
 
 struct Trellis
+    nstates :: Integer 
     states  :: Array{Integer, 2}
     outputs :: Array{Integer, 2}
 end
@@ -62,9 +63,10 @@ function poly2trellis(reglen::Integer, codes :: Vector{<:Integer})
         states[state, :] = [nxt0, nxt1];
     end
 
-    return Trellis(s, o);
+    return Trellis(nstates, s, o);
 end
 
+#
 function convenc(trellis::Trellis, x::Vector{<:Integer}) :: Vector{Integer}
     y = zeros(Integer, length(x));
     
@@ -81,25 +83,28 @@ function convenc(trellis::Trellis, x::Vector{<:Integer}) :: Vector{Integer}
      return y;
 end
 
-# function minsum(errors, observed, predictions) 
-#     n = length(errors);
-#     half = n >> 1 
+function minsum(t :: Trellis, errors :: Vector{<:Integer}, observed :: Integer) 
+    n = length(errors);
+    half = n >> 1 
 
-#     e = zeros(1, n);
-#     p = zeros(1, n);
+    e = zeros(Integer, n);
+    p = zeros(Integer, n);
 
-#     for i in 0:n-1
-#         if i <= half
-#             i0 = ((i-1) << 1) + 1
-#             i1 = i0 + 1;
-#             e0 = errors[i0] + biterror(observed, predictions[i0, 1]);
-#             e1 = errors[i1] + biterror(observed, predictions[i1, 1]);
-#         else
-#             i0 = ((i - 1 - half) << 1) + 1;
-#             i1 = i0 + 1;
-#             e0 = errors[i0] + biterror(observed, predictions[i0, 2]);
-#             e1 = errors[i1] + biterror(observed, predictions[i1, 2]);            e0 = errors[i0+1] + 
-#         end
+    predictions = OffsetArray(trellis.outputs, 0:n-1, 0:1);
+    errors = OffsetArray(errors, 0:n-1);
+    
+    for i in 0:n-1
+        if i < half
+            i0 = i << 1;
+            i1 = i + 1;
+            e0 = errors[i0] + biterror(observed, predictions[i0, 0]);
+            e1 = errors[i1] + biterror(observed, predictions[i1, 0]);
+         else
+            i0 = (i-half) << 1
+            i1 = i0 + 1;
+            e0 = errors[i0] + biterror(observed, predictions[i0, 1]);
+            e1 = errors[i1] + biterror(observed, predictions[i1, 1]);            
+         end
         
 #         if e0 < e1 
 #             p[i], e[i] = i0, e0;
