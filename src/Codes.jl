@@ -5,10 +5,8 @@ using OffsetArrays
 export binarydot, poly2trellis, Trellis, convenc, vitdec 
 
 struct Trellis
-    reglen :: Int
-    states :: Array{UInt8, 2}
-    outputs :: Array{UInt8, 2}
-    codes :: Array{UInt8, 2}
+    states  :: Array{Integer, 2}
+    outputs :: Array{Integer, 2}
 end
 
 function binarydot(x::Integer, y::Integer) :: Integer
@@ -26,49 +24,62 @@ function biterror(x::Integer, y::Integer) :: Integer
     out = 0;
     while z != 0
         out += (z & 1);
-        z = z >> 1;
+        z >>= 1;
     end
     return out;
 end
 
-function foo(reglen::Integer, codes :: Vector{<:Integer})
+function poly2trellis(reglen::Integer, codes :: Vector{<:Integer})
 
     statelen = reglen - 1;
     nstates = 1 << statelen;
 
-    states = OffsetArray(zeros(Integer, nstates, 2), 0:nstates-1, 0:1);
-    outputs = OffsetArray(zeros(Integer, nstates, 2), 0:nstates-1, 0:1);
+    s = zeros(Integer, nstates, 2);
+    o = zeros(Integer, nstates, 2);
+    
+    states = OffsetArray(s, 0:nstates-1, 0:1);
+    outputs = OffsetArray(o, 0:nstates-1, 0:1);
 
     mask1 = nstates;
     mask0 = 0;
+
+    ncodes = length(codes); 
 
     for state in 0:nstates-1
         nxt0, nxt1 = mask0 | state, mask1 | state;
         out0, out1 = 0, 0; 
         for (i, code) in enumerate(codes)
-            shft = i-1;
+            shft = i - 1;
             out0 |= (binarydot(code, nxt0) << shft);
             out1 |= (binarydot(code, nxt1) << shft);
         end
 
-        nxt0, nxt1 = nxt0 >> 1, nxt1 >> 1; 
+        # Shift
+        nxt0 >>= 1;
+        nxt1 >>= 1;
+
         outputs[state, :] = [out0, out1];
         states[state, :] = [nxt0, nxt1];
     end
 
-    return parent(outputs), parent(states);
+    return Trellis(s, o);
 end
 
-# function convenc(trellis::Trellis, bits::Array{UInt8, 2}) :: Array{UInt8,2}
-#     state = 0x00;
-#     output = zeros(UInt8, 1, length(bits));
-#     for (i, bit) in enumerate(bits)
-#         row, col = state + 1, bit+1;
-#         output[i] = trellis.outputs[row, col];
-#         state = trellis.states[row, col];
-#     end
-#     return output;
-# end
+function convenc(trellis::Trellis, x::Vector{<:Integer}) :: Vector{Integer}
+    y = zeros(Integer, length(x));
+    
+    n, _ = size(trellis.states);
+
+    states = OffsetArray(trellis.states, 0:n-1, 0:1);
+    outputs = OffsetArray(trellis.outputs, 0:n-1, 0:1);
+
+    h = 0;
+    for (i, xi) in enumerate(x)
+         y[i] = outputs[h, xi];
+         h = states[h, xi];
+     end
+     return y;
+end
 
 # function minsum(errors, observed, predictions) 
 #     n = length(errors);
