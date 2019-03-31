@@ -1,7 +1,14 @@
 module Codes
 
 
-export binarydot, poly2trellis, Trellis, convenc, vitdec, minsum
+export 
+    binarydot, 
+    poly2trellis, 
+    Trellis, 
+    convenc, 
+    vitdec, 
+    minsum, 
+    biterror 
 
 
 state2idx(n) = Dict(i-1 => i for i in 1:n);  
