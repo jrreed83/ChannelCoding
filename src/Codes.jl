@@ -4,6 +4,11 @@ using OffsetArrays
 
 export binarydot, poly2trellis, Trellis, convenc, vitdec, minsum
 
+
+state2idx(n) = Dict(i-1 => i for i in 1:n);  
+idx2state(n) = Dict(i => i-1 for i in 1:n);
+bit2idx = Dict(0=>1, 1=>2);
+
 struct Trellis
     nstates   :: Integer 
     states    :: Array{Integer, 2}
@@ -43,7 +48,7 @@ function poly2trellis(reglen::Integer, codes :: Vector{<:Integer})
 
     ncodes = length(codes); 
 
-    state2idx = Dict([(i-1:i) for i in 1:nstates]);
+    s2i = state2idx(nstates);
 
     for state in 0:nstates-1
         nxt0, nxt1 = mask0 | state, mask1 | state;
@@ -58,10 +63,8 @@ function poly2trellis(reglen::Integer, codes :: Vector{<:Integer})
         nxt0 >>= 1;
         nxt1 >>= 1;
 
-        idx = state2idx[state];
-
-        outputs[idx, :] = [out0, out1];
-        states[idx, :] = [nxt0, nxt1];
+        outputs[s2i[state], :] = [out0, out1];
+        states[s2i[state], :] = [nxt0, nxt1];
     end
 
     return Trellis(nstates, states, outputs);
@@ -72,14 +75,12 @@ function convenc(t::Trellis, x::Vector{<:Integer}) :: Vector{Integer}
     y = zeros(Integer, length(x));
     n = t.nstates;
 
-    state2idx = Dict([(i-1:i) for i in 1:n]);    
-    bit2idx = Dict(0=>1, 1=>2);
+    s2i = state2idx(n);    
+    b2i = bit2idx;
     h = 0;
-    for (i, xi) in enumerate(x)
-        row = state2idx[h];
-        col = bit2idx[xi]; 
-        y[i] = t.outputs[row, col];
-        h = t.states[row, col];
+    for (i, bit) in enumerate(x) 
+        y[i] = t.outputs[s2i[h], b2i[bit]];
+        h = t.states[s2i[h], b2i[bit]];
     end
     return y;
 end
@@ -93,23 +94,23 @@ function minsum(t :: Trellis, errors :: Vector{Float64}, observed :: Integer)
 
     preds = t.outputs;
 
-    state2idx = Dict([(i-1:i) for i in 1:n]);    
-    bit2idx = Dict(0=>1, 1=>2);
+    s2i = state2idx(n);    
+    b2i = bit2idx;
 
     for i in 0:n-1
         if i < half
             i0 = i << 1;
             i1 = i0 + 1;
-            e0 = errors[state2idx[i0]] + biterror(observed, preds[state2idx[i0], bit2idx[0]]);
-            e1 = errors[state2idx[i1]] + biterror(observed, preds[state2idx[i1], bit2idx[0]]);
+            e0 = errors[s2i[i0]] + biterror(observed, preds[s2i[i0], b2i[0]]);
+            e1 = errors[s2i[i1]] + biterror(observed, preds[s2i[i1], b2i[0]]);
         else
             i0 = (i-half) << 1;
             i1 = i0 + 1;
-            e0 = errors[state2idx[i0]] + biterror(observed, preds[state2idx[i0], bit2idx[1]]);
-            e1 = errors[state2idx[i1]] + biterror(observed, preds[state2idx[i1], bit2idx[1]]);            
+            e0 = errors[s2i[i0]] + biterror(observed, preds[s2i[i0], b2i[1]]);
+            e1 = errors[s2i[i1]] + biterror(observed, preds[s2i[i1], b2i[1]]);            
         end
         
-        p[state2idx[i]], e[state2idx[i]] = e0 < e1 ? (i0, e0) : (i1, e1);
+        p[s2i[i]], e[s2i[i]] = e0 < e1 ? (i0, e0) : (i1, e1);
     end
 
     return e, p;
@@ -120,11 +121,10 @@ function vitdec(t::Trellis, inputs::Vector{<:Integer})
     n = length(inputs);
     paths = zeros(Integer, t.nstates, n);
 
-    state2idx = Dict([(i-1,i) for i in 1:n]);  
-    idx2state = Dict([(i,i-1) for i in 1:n]);    
-
+    s2i = state2idx(t.nstates);
+    i2s = idx2state(t.nstates);
     errs = fill(Inf, t.nstates);
-    errs[state2idx[0]] = 0;
+    errs[s2i[0]] = 0;
     
     # Forward pass
     for (i, obs) in enumerate(inputs)
@@ -133,13 +133,12 @@ function vitdec(t::Trellis, inputs::Vector{<:Integer})
 
     # Backward pass 
     bits = zeros(Integer, n);    
-    k1 = idx2state[argmin(errs)];
+    k1 = i2s[argmin(errs)];
     for i in n:-1:1
-        k0 = paths[state2idx[k1], i];
+        k0 = paths[s2i[k1], i];
         bits[i] = (k1 == (k0 >> 1)) ? 0 : 1;
         k1 = k0;
     end
-
     return bits;
 end
 
