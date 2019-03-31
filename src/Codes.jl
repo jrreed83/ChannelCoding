@@ -1,6 +1,5 @@
 module Codes
 
-using OffsetArrays 
 
 export binarydot, poly2trellis, Trellis, convenc, vitdec, minsum
 
